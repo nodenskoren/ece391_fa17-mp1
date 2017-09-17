@@ -251,8 +251,14 @@ update_missiles:
 		popl		%edx
 		
 		# Calculate the new position
-		addl		VX(%ebx), X(%ebx)
-		addl		VY(%ebx), Y(%ebx)
+		pushl       %edi
+		movl        X(%ebx), %edi
+		addl		VX(%ebx), %edi
+		movl        %edi, X(%ebx)
+		movl        Y(%ebx), %edi
+		addl		VY(%ebx), %edi
+		movl        %edi, Y(%ebx)
+		popl        %edi
 
 		movl		X(%ebx), %eax
 		movl		Y(%ebx), %esi
@@ -263,7 +269,7 @@ update_missiles:
 		imull		$2, %eax
 		imull		$160, %esi
 		addl		%esi, %eax
-		movl		C(%ebx), %cl
+		movb		C(%ebx), %cl
 		pushl		%edx
 		call		mp1_poke
 		popl		%edx
@@ -506,7 +512,7 @@ redraw_crosshairs:
 
 		# Replace anything at assigned screen position with "+"
 		addl		%ebx, %eax
-		movl		$43, %cl
+		movb		$43, %cl
 		call		mp1_poke
 
 		# Restore the stack frame
@@ -649,7 +655,7 @@ mp1_ioctl_movexhairs:
 		imull		$2, %eax
 		imull		$160, %ecx
 		addl		%ecx, %eax
-		movl		$32, %cl
+		movb		$32, %cl
 		call		mp1_poke
 
 		# Adding the offsets
@@ -727,20 +733,23 @@ mp1_ioctl_getstatus:
 		# Initialize the value passed to the user to 0
 		movl		$0, %ecx
 		
+		pushl       %edx
+		movl        $base_alive, %edx
+		
 		base_3_alive:
-		cmpb		$0, 2(base_alive)
+		cmpb		$0, 2(%edx)
 		je		base_2_alive
 		addl		$1, %ecx
 		
 		base_2_alive:
 		shll		$1, %ecx
-		cmpb		$0, 1(base_alive)
+		cmpb		$0, 1(%edx)
 		je		base_1_alive
 		addl		$1, %ecx
 		
 		base_1_alive:
 		shll		$1, %ecx
-		cmpb		$0, base_alive
+		cmpb		$0, %edx
 		je		get_mp1_score
 		addl		$1, %ecx
 
