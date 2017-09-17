@@ -356,10 +356,11 @@ update_cities:
 		pushl		%esi
 		pushl		%edi
 
+        movl        $base_alive, %esi
 		# Offset = 160 * 24 + 2 * 18 = 3876
 		update_first_city:
 		movl		$3876, %eax
-		cmpb		$0, base_alive
+		cmpb		$0, 0(%esi)
 		je		destroy_first_city
 		pushl		%eax
 		call		redraw_city
@@ -373,7 +374,7 @@ update_cities:
 		# Offset = 160 * 24 + 2 * 38 = 3916
 		update_second_city:
 		movl		$3916, %eax
-		cmpb		$0, 1(base_alive)
+		cmpb		$0, 1(%esi)
 		je		destroy_second_city
 		pushl		%eax
 		call		redraw_city
@@ -387,7 +388,7 @@ update_cities:
 		# Offset = 160 * 24 + 2 * 58 = 3956
 		update_third_city:
 		movl		$3956, %eax
-		cmpb		$0, 2(base_alive)
+		cmpb		$0, 2(%esi)
 		je		destroy_third_city
 		pushl		%eax
 		call		redraw_city
@@ -537,7 +538,7 @@ mp1_ioctl_startgame:
 		# 0, 1, 1, 1 because x86 stores from the leftmost byte
 		# 0 is padding
 		movl		$base_alive, %ebx
-		movb		$1, %ebx
+		movb		$1, 0(%ebx)
 		movb		$1, 1(%ebx)
 		movb		$1, 2(%ebx)
 		movb		$0, 3(%ebx)
@@ -749,7 +750,7 @@ mp1_ioctl_getstatus:
 		
 		base_1_alive:
 		shll		$1, %ecx
-		cmpb		$0, %edx
+		cmpb		$0, 0(%edx)
 		je		get_mp1_score
 		addl		$1, %ecx
 
