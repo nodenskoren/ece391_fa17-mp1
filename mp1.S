@@ -303,14 +303,14 @@ mp1_missile_remove:
 
 		missile_head_check:
 		cmpl		$0, %esi
-		je		missile_removal_complete
+		je		missile_removal_completed
 		cmpl		%esi, %ebx
 		je		head_deletion
 		
 		# Track the element prior to the element being removed
 		missile_list_loop:
 		cmpl		$0, %esi
-		je		missile_removal_complete
+		je		missile_removal_completed
 		cmpl		NEXT(%esi), %ebx
 		je		element_deletion
 		movl		NEXT(%esi), %esi
