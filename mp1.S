@@ -84,7 +84,7 @@ mp1_rtc_tasklet:
 
 		# Check if there are missiles left in the linked list
 		cmpl		$0, mp1_missile_list
-		je          missiles_update_complete
+		je		missiles_update_complete
 
 		# Call the first function to update/check missiles
 		# Save the caller-saved registers
@@ -143,10 +143,10 @@ mp1_rtc_tasklet:
 mp1_ioctl:
 		movl		8(%esp), %eax
 		cmpl		$4, %eax
-		jg          invalid_cmd
+		jg		invalid_cmd
 		cmpl		$0, %eax
-		jl          invalid_cmd
-		jmp         *jumptable(,%eax,4)
+		jl		invalid_cmd
+		jmp		*jumptable(,%eax,4)
 
 invalid_cmd:
 		movl		$-1, %eax
@@ -174,11 +174,11 @@ update_missiles:
 		missile_loop_check:
 		# Check if the curr points to NULL
 		cmpl		$0, %ebx
-		je          end_of_missile_list
+		je		end_of_missile_list
 
 		# Check if the missile is exploding
 		cmpl		$0, EXPLODED(%ebx)
-		jne         exploding
+		jne		exploding
 
 		# Store each piece of data into different registers
 		movl		X(%ebx), %ecx
@@ -192,13 +192,13 @@ update_missiles:
 
 		# Case 1, check if the missile has moved off the screen
 		cmpw		$0, %cx
-		jl          missile_remove
+		jl		missile_remove
 		cmpw		$79, %cx
-		jg          missile_remove
+		jg		missile_remove
 		cmpw		$0, %dx
-		jl          missile_remove
+		jl		missile_remove
 		cmpw		$24, %dx
-		jg          missile_remove
+		jg		missile_remove
 		
 		imull		$2, %eax
 		imull		$160, %esi
@@ -213,9 +213,9 @@ update_missiles:
 		movl		DEST_X(%ebx), %ecx
 		movl		DEST_Y(%ebx), %edx
 		cmpw		%cx, %ax
-		jne         position_change
+		jne		position_change
 		cmpw		%dx, %si
-		jne         position_change	
+		jne		position_change	
 
 		exploding:
 		pushl		%ebx
@@ -223,14 +223,14 @@ update_missiles:
 		popl		%ebx
 		subl		$1, EXPLODED(%ebx)
 		cmpl		$0, EXPLODED(%ebx)
-		je          missile_remove
-		jmp         next_missile_in_the_list
+		je		missile_remove
+		jmp		next_missile_in_the_list
 
 		missile_remove:
 		pushl		%ebx
 		call		mp1_missile_remove
 		popl		%ebx
-		jmp         next_missile_in_the_list
+		jmp		next_missile_in_the_list
 		
 		# 3rd function, redraw missiles in new position
 		position_change:
@@ -268,12 +268,12 @@ update_missiles:
 		call		mp1_poke
 		popl		%edx
 
-		jmp         next_missile_in_the_list
+		jmp		next_missile_in_the_list
 
 		next_missile_in_the_list:
 		movl		%ebx, %ecx
 		movl		NEXT(%ecx), %ebx
-		jmp         missile_loop_check		
+		jmp		missile_loop_check		
 
 		end_of_missile_list:
 		# Restore the stack frame
@@ -297,18 +297,18 @@ mp1_missile_remove:
 
 		missile_head_check:
 		cmpl		$0, %esi
-		je          missile_removal_complete
+		je		missile_removal_complete
 		cmpl		%esi, %ebx
-		je          head_deletion
+		je		head_deletion
 		
 		# Track the element prior to the element being removed
 		missile_list_loop:
 		cmpl		$0, %esi
-		je          missile_removal_complete
+		je		missile_removal_complete
 		cmpl		NEXT(%esi), %ebx
-		je          element_deletion
+		je		element_deletion
 		movl		NEXT(%esi), %esi
-		jmp         missile_list_loop
+		jmp		missile_list_loop
 		
 		element_deletion:
 		movl		NEXT(%ebx), %edi
@@ -320,7 +320,7 @@ mp1_missile_remove:
 		popl		%ebx
 		popl		%eax
 		movl		%edi, NEXT(%esi)
-		jmp         missile_removal_completed
+		jmp		missile_removal_completed
 
 		head_deletion:
 		# Protect the caller save register
@@ -354,11 +354,11 @@ update_cities:
 		update_first_city:
 		movl		$3876, %eax
 		cmpb		$0, base_alive
-		je          destroy_first_city
+		je		destroy_first_city
 		pushl		%eax
 		call		redraw_city
 		popl		%eax
-		jmp         update_second_city
+		jmp		update_second_city
 		destroy_first_city:
 		pushl		%eax
 		call		draw_destroyed_city		
@@ -368,11 +368,11 @@ update_cities:
 		update_second_city:
 		movl		$3916, %eax
 		cmpb		$0, 1(base_alive)
-		je          destroy_second_city
+		je		destroy_second_city
 		pushl		%eax
 		call		redraw_city
 		popl		%eax
-		jmp         update_third_city
+		jmp		update_third_city
 		destroy_second_city:
 		pushl		%eax
 		call		draw_destroyed_city
@@ -382,11 +382,11 @@ update_cities:
 		update_third_city:
 		movl		$3956, %eax
 		cmpb		$0, 2(base_alive)
-		je          destroy_third_city
+		je		destroy_third_city
 		pushl		%eax
 		call		redraw_city
 		popl		%eax
-		jmp         update_cities_completed
+		jmp		update_cities_completed
 		destroy_third_city:
 		pushl		%eax
 		call		draw_destroyed_city
@@ -575,7 +575,7 @@ mp1_ioctl_addmissile:
 		pushl		%eax
 		call		mp1_copy_from_user
 		cmpl		$0, %eax
-		jne         add_fail
+		jne		add_fail
 		popl		%eax
 		popl		%ebx
 		popl		%ecx
@@ -635,7 +635,7 @@ mp1_ioctl_movexhairs:
 		movl		8(%ebp), %ebx
 		cmpl		$0, %ebx
 		# If none, leave with nothing changed
-		je          crosshairs_change_completed
+		je		crosshairs_change_completed
 
 		# Fetch the input arg
 		movl		%ebx, %esi
@@ -659,24 +659,24 @@ mp1_ioctl_movexhairs:
 		# Conditional Checks (too large or too small)
 		check_if_x_too_small:
 		cmpl		$0, crosshairs_x
-		jg          check_if_x_too_large
+		jg		check_if_x_too_large
 		movl		$0, crosshairs_x
-		jmp         check_if_y_too_small		
+		jmp		check_if_y_too_small		
 
 		check_if_x_too_large:
 		cmpl		$70, crosshairs_x
-		jl          check_if_y_too_small
+		jl		check_if_y_too_small
 		movl		$70, crosshairs_x
 
 		check_if_y_too_small:
 		cmpl		$0, crosshairs_y
-		jg          check_if_y_too_large
+		jg		check_if_y_too_large
 		movl		$0, crosshairs_y
-		jmp         boundary_check_done
+		jmp		boundary_check_done
 
 		check_if_y_too_large:
 		cmpl		$24, crosshairs_y
-		jl          boundary_check_done
+		jl		boundary_check_done
 		movl		$24, crosshairs_y
 
 		boundary_check_done:
@@ -729,19 +729,19 @@ mp1_ioctl_getstatus:
 		
 		base_3_alive:
 		cmpb		$0, 2(base_alive)
-		je          base_2_alive
+		je		base_2_alive
 		addl		$1, %ecx
 		
 		base_2_alive:
 		shll		$1, %ecx
 		cmpb		$0, 1(base_alive)
-		je          base_1_alive
+		je		base_1_alive
 		addl		$1, %ecx
 		
 		base_1_alive:
 		shll		$1, %ecx
 		cmpb		$0, base_alive
-		je          get_mp1_score
+		je		get_mp1_score
 		addl		$1, %ecx
 
 		get_mp1_score:
@@ -763,7 +763,7 @@ mp1_ioctl_getstatus:
 
 		# Return value in the eax, if not 0 then copy failed
 		cmpl		$0, %eax
-		jne         copy_to_user_fail
+		jne		copy_to_user_fail
 
 		# Restore the stack frame pushed for used register
 		popl		%edx
@@ -813,16 +813,16 @@ mp1_ioctl_endgame:
 
 		# Linked list removal
 		# head = head->next
-		missile_list_loop:
+		missile_list_loop_2:
 		movl		mp1_missile_list, %ebx
 		cmpl		$0, %ebx
-		je          end_cleanup
+		je		end_cleanup
 		movl		NEXT(%ebx), %ecx
 		movl		%ecx, mp1_missile_list
 		pushl		%ebx
 		call		mp1_free
 		popl		%ebx
-		jmp         missile_list_loop
+		jmp		missile_list_loop_2
 
 		end_cleanup:
 		popl		%edx
