@@ -537,11 +537,7 @@ mp1_ioctl_startgame:
 		movl		$0, mp1_missile_list
 		# 0, 1, 1, 1 because x86 stores from the leftmost byte
 		# 0 is padding
-		movl		$base_alive, %ebx
-		movb		$1, 0(%ebx)
-		movb		$1, 1(%ebx)
-		movb		$1, 2(%ebx)
-		movb		$0, 3(%ebx)
+		movl		$0x00010101, base_alive
 
 		# Initialize mp1_score to 0
 		movl		$0, mp1_score
