@@ -168,74 +168,105 @@ update_missiles:
 		pushl		%edi
 		
 		# Load in the missile list
-		movl		mp1_missile_list, %ebx
+		movl		mp1_missile_list, %edx
 
 		# Go over the missile linked list
 		missile_loop_check:
 		# Check if the curr points to NULL
-		cmpl		$0, %ebx
-		je		end_of_missile_list
+		cmpl		$0, %edx
+		je			end_of_missile_list
 
 		# Check if the missile is exploding
-		cmpl		$0, EXPLODED(%ebx)
-		jne		exploding
+		cmpl		$0, EXPLODED(%edx)
+		jne			is_exploding
 
 		# Store each piece of data into different registers
-		movl		X(%ebx), %ecx
-		movl		Y(%ebx), %edx
-		movl		X(%ebx), %eax
-		movl		Y(%ebx), %esi
+		movl		X(%edx), %eax
+		movl		Y(%edx), %esi
 		roll		$16, %eax
 		roll		$16, %esi
 		andl		$0x0000ffff, %eax
 		andl		$0x0000ffff, %esi
 
 		# Case 1, check if the missile has moved off the screen
-		cmpw		$0, %cx
-		jl		missile_remove
-		cmpw		$79, %cx
-		jg		missile_remove
-		cmpw		$0, %dx
-		jl		missile_remove
-		cmpw		$24, %dx
-		jg		missile_remove
+		off_screen_check:
+		cmpl		$0, X(%edx)
+		jl			missile_remove
+		cmpl		$79, X(%edx)
+		jl			missile_remove
+		cmpl		$0, Y(%edx)
+		jl			missile_remove
+		cmpl		$24, Y(%edx)
+		jl			missile_remove
 		
 		imull		$2, %eax
 		imull		$160, %esi
 		addl		%esi, %eax
-		movb		C(%ebx), %cl
+		movb		C(%edx), %cl
 		pushl		%edx
 		call		mp1_poke
 		popl		%edx
 
 		# Case 2, check if the missile has reached destination
 		reached_destination_check:
-		movl		DEST_X(%ebx), %ecx
-		movl		DEST_Y(%ebx), %edx
-		cmpw		%cx, %ax
-		jne		position_change
-		cmpw		%dx, %si
-		jne		position_change	
-
+		movl		X(%edx), %eax
+		roll		$16, %eax
+		andl		$0x0000ffff, %eax
+		movl		Y(%edx), %esi
+		roll		$16, %esi
+		andl		$0x0000ffff, %esi
+		
+		check_x_destination:
+		cmpl		%eax, DEST_X(%edx)
+		je			check_y_destination
+		jmp			continue_moving
+		
+		check_y_destination:
+		cmpl		%esi, DEST_Y(%edx)
+		je			exploding
+		jmp			continue_moving
+		
 		exploding:
-		pushl		%ebx
+		pushl		%edx
 		call		missile_explode
-		popl		%ebx
-		subl		$1, EXPLODED(%ebx)
-		cmpl		$0, EXPLODED(%ebx)
-		je		missile_remove
-		jmp		next_missile_in_the_list
-
-		missile_remove:
-		pushl		%ebx
-		call		mp1_missile_remove
-		popl		%ebx
-		jmp		next_missile_in_the_list
+		popl		%edx
+		
+		cmpl		$0, %eax
+		je			continue_moving
+		
+		pushl		%edx
+		call		mp1_notify_user
+		popl		%edx
+		
+		continue_moving:
+		cmpl		$0, EXPLODED(%edx)
+		je			position_change
+		subl		$1, EXPLODED(%edx)
+		cmpl		$0, EXPLODED(%edx)
+		je			missile_remove
+		
+		# Rotate the upper 16 bits of X and Y to lower
+		movl		X(%edx), %eax
+		roll		$16, %eax
+		andl		$0x0000ffff, %eax
+		movl		Y(%edx), %esi
+		roll		$16, %esi
+		andl		$0x0000ffff, %esi
+		
+		# Calculate the offset
+		imull		$2, %eax
+		imull		$160, %esi
+		addl		%esi, %eax
+		movb		$EXPLOSION, %cl
+		pushl		%edx
+		call		mp1_poke
+		popl		%edx
+		jmp			next_missile_in_the_list
 		
 		# 3rd function, redraw missiles in new position
 		position_change:
-		movl		X(%ebx), %eax
-		movl		Y(%ebx), %esi
+		movl		X(%edx), %eax
+		movl		Y(%edx), %esi
 		roll		$16, %eax
 		roll		$16, %esi
 		andl		$0x0000ffff, %eax
@@ -250,18 +281,17 @@ update_missiles:
 		call		mp1_poke
 		popl		%edx
 		
-		# Calculate the new position
-		pushl       %edi
-		movl        X(%ebx), %edi
-		addl		VX(%ebx), %edi
-		movl        %edi, X(%ebx)
-		movl        Y(%ebx), %edi
-		addl		VY(%ebx), %edi
-		movl        %edi, Y(%ebx)
-		popl        %edi
-
-		movl		X(%ebx), %eax
-		movl		Y(%ebx), %esi
+		# Add the velocity to the current position and store back
+		movl        X(%edx), %eax
+		addl		VX(%edx), %eax
+		movl        %eax, X(%edx)
+		movl        Y(%edx), %esi
+		addl		VY(%edx), %esi
+		movl        %esi, Y(%edx)
+		
+		# Rotate the upper 16th bits to lower to calculate offsets
+		movl		X(%edx), %eax
+		movl		Y(%edx), %esi
 		roll		$16, %eax		
 		roll		$16, %esi
 		andl		$0x0000ffff, %eax
@@ -269,17 +299,36 @@ update_missiles:
 		imull		$2, %eax
 		imull		$160, %esi
 		addl		%esi, %eax
-		movb		C(%ebx), %cl
+		
+		# Push the missile character as the argument to display, and protect %edx
+		# Args in %eax and %cl, %edx used as return register
+		movb		C(%edx), %cl
 		pushl		%edx
 		call		mp1_poke
 		popl		%edx
-
-		jmp		next_missile_in_the_list
+		jmp			next_missile_in_the_list
+		
+		is_exploding:
+		movl		$0, VX(%edx)
+		movl		$0, VY(%edx)
+		pushl		%edx
+		call		missile_explode
+		popl		%edx
+		cmpl		$0, %eax
+		je			no_nearby_explosion
+		pushl		%edx
+		call		mp1_notify_user
+		popl		%edx
+		
+		no_nearby_explosion:
+		subl		$1, EXPLODED(%edx)
+		cmpl		$0, EXPLODED(%edx)
+		je			missile_remove
 
 		next_missile_in_the_list:
-		movl		%ebx, %ecx
-		movl		NEXT(%ecx), %ebx
-		jmp		missile_loop_check		
+		movl		%edx, %ecx
+		movl		NEXT(%ecx), %edx
+		jmp			missile_loop_check		
 
 		end_of_missile_list:
 		# Restore the stack frame
@@ -289,7 +338,41 @@ update_missiles:
 		leave
 		ret
 
-mp1_missile_remove:
+###############################################
+		
+		
+missile_remove:
+			
+		cmpl		$0, %edx
+		je			end_of_missile_list
+		# Clear the missile position to be a blank
+		movl		X(%edx), %eax
+		roll		$16, %eax
+		andl		$0x0000ffff, %eax
+		movl		Y(%edx), %esi
+		roll		$16, %esi
+		andl		$0x0000ffff, %esi
+		imull		$2, %eax
+		imull		$160, %esi
+		addl		%esi, %eax
+		movb		$32, %cl
+		pushl		%edx
+		call		mp1_poke
+		popl		%edx
+		
+		# Protect caller-save registers
+		pushl		%eax
+		pushl		%ecx
+		pushl		%edx
+		call		mp1_missile_remove
+		addl		$4, %esp
+		popl		%ecx
+		popl		%eax
+		jmp			next_missile_in_the_list
+
+
+ mp1_missile_remove:
+
 		# Set up the stack frame
 		pushl		%ebp
 		movl		%esp, %ebp
@@ -300,43 +383,48 @@ mp1_missile_remove:
 		pushl		%edi
 
 		movl		mp1_missile_list, %esi
-
+		
 		missile_head_check:
 		cmpl		$0, %esi
-		je		missile_removal_completed
-		cmpl		%esi, %ebx
-		je		head_deletion
+		je			missile_removal_completed
+		cmpl		%esi, %edx
+		je			head_deletion
 		
 		# Track the element prior to the element being removed
 		missile_list_loop:
 		cmpl		$0, %esi
-		je		missile_removal_completed
-		cmpl		NEXT(%esi), %ebx
-		je		element_deletion
+		je			missile_removal_completed
+		cmpl		NEXT(%esi), %edx
+		je			element_deletion
 		movl		NEXT(%esi), %esi
-		jmp		missile_list_loop
+		jmp			missile_list_loop
 		
 		element_deletion:
-		movl		NEXT(%ebx), %edi
+		movl		NEXT(%edx), %edi
+		movl		$0, NEXT(%edx)
 		# Protect the caller save register
 		pushl		%eax
 		# Push the arg to mp1_free
-		pushl		%ebx
+		pushl		%edx
 		call		mp1_free
-		popl		%ebx
+		addl		$4, %esp
 		popl		%eax
 		movl		%edi, NEXT(%esi)
-		jmp		missile_removal_completed
+		
+		jmp			missile_removal_completed
 
 		head_deletion:
+		movl		NEXT(%edx), %edi
+		movl		$0, NEXT(%edx)
 		# Protect the caller save register
 		pushl		%eax
 		# Push the arg to mp1_free
-		pushl		%ebx
+		pushl		%edx
 		call		mp1_free
-		popl		%ebx
+		addl		$4, %esp
 		popl		%eax
-		movl		%esi, mp1_missile_list
+		movl		%edi, %edx
+		movl		%edx, mp1_missile_list
 	
 		missile_removal_completed:
 		# Restore the stack frame
@@ -347,6 +435,7 @@ mp1_missile_remove:
 		ret
 
 update_cities:
+
 		# Set up the stack frame
 		pushl		%ebp
 		movl		%esp, %ebp
@@ -408,6 +497,7 @@ update_cities:
 		ret
 
 redraw_city:
+
 		# Set up the stack frame
 		pushl		%ebp
 		movl		%esp, %ebp
@@ -452,6 +542,7 @@ redraw_city:
 		ret
 
 draw_destroyed_city:
+
 		# Set up the stack frame
 		pushl		%ebp
 		movl		%esp, %ebp
@@ -496,6 +587,7 @@ draw_destroyed_city:
 		ret
 
 redraw_crosshairs:
+
 		# Set up the stack frame
 		pushl		%ebp
 		movl		%esp, %ebp
@@ -524,6 +616,7 @@ redraw_crosshairs:
 		ret
 
 mp1_ioctl_startgame:
+
 		# Set up the stack frame
 		pushl		%ebp
 		movl		%esp, %ebp
@@ -553,6 +646,7 @@ mp1_ioctl_startgame:
 		leave
 		ret
 
+# Is working but tasklet is broken
 mp1_ioctl_addmissile:
 		# Set up the stack frame
 		pushl		%ebp
@@ -578,7 +672,7 @@ mp1_ioctl_addmissile:
 		pushl		%eax
 		call		mp1_copy_from_user
 		cmpl		$0, %eax
-		jne		add_fail
+		jne			add_fail
 		popl		%eax
 		popl		%ebx
 		popl		%ecx
@@ -619,7 +713,9 @@ mp1_ioctl_addmissile:
 		leave
 		ret
 
+# Is working
 mp1_ioctl_movexhairs:
+		
 		# Set up the stack frame
 		pushl		%ebp
 		movl		%esp, %ebp
@@ -661,36 +757,33 @@ mp1_ioctl_movexhairs:
 
 		# Conditional Checks (too large or too small)
 		check_if_x_too_small:
-		cmpl		$0, crosshairs_x
-		jg		check_if_x_too_large
+		cmpw		$0, crosshairs_x
+		jg			check_if_x_too_large
 		movl		$0, crosshairs_x
-		jmp		check_if_y_too_small		
+		jmp			check_if_y_too_small
 
 		check_if_x_too_large:
-		cmpl		$70, crosshairs_x
-		jl		check_if_y_too_small
-		movl		$70, crosshairs_x
+		cmpw		$79, crosshairs_x
+		jl			check_if_y_too_small
+		movl		$79, crosshairs_x
 
 		check_if_y_too_small:
-		cmpl		$0, crosshairs_y
-		jg		check_if_y_too_large
+		cmpw		$0, crosshairs_y
+		jg			check_if_y_too_large
 		movl		$0, crosshairs_y
-		jmp		boundary_check_done
+		jmp			draw_crosshairs
 
 		check_if_y_too_large:
-		cmpl		$24, crosshairs_y
-		jl		boundary_check_done
+		cmpw		$24, crosshairs_y
+		jl			draw_crosshairs
 		movl		$24, crosshairs_y
-
-		boundary_check_done:
-		# Load back the new crosshair values (new or old)
-		movl		crosshairs_x, %eax
-		movl		crosshairs_y, %ecx
 
 		# Draw a "plus" sign as crosshair at new position
 		draw_crosshairs:
+		movl		crosshairs_x, %eax
+		movl		crosshairs_y, %ecx
 		imull		$2, %eax
-		imull		$80, %ecx
+		imull		$160, %ecx
 		addl		%ecx, %eax
 		movb		$43, %cl
 		call		mp1_poke
@@ -706,10 +799,11 @@ mp1_ioctl_movexhairs:
 
 		# Always return 0
 		movl		$0, %eax
-		leave		
+		leave
 		ret
 
 mp1_ioctl_getstatus:
+		
 		# Set up the stack frame
 		pushl		%ebp
 		movl		%esp, %ebp
@@ -719,18 +813,14 @@ mp1_ioctl_getstatus:
 		pushl		%esi
 		pushl		%edi
 
-		# Saving registers that might be potentially used
-		pushl		%eax
-		pushl		%ecx
-		pushl		%edx
-
 		# Load in the argument (address of the user space)
 		movl		8(%ebp), %ebx
-
-		# Initialize the value passed to the user to 0
+		movl		$4, %edi
+		pushl		%edi
+		call		mp1_malloc
+		popl		%edi
+		# Initialize the value passing to the user to 0
 		movl		$0, %ecx
-		
-		pushl       %edx
 		movl        $base_alive, %edx
 		
 		base_3_alive:
@@ -746,7 +836,7 @@ mp1_ioctl_getstatus:
 		
 		base_1_alive:
 		shll		$1, %ecx
-		cmpb		$0, 0(%edx)
+		cmpb		$0, (%edx)
 		je		get_mp1_score
 		addl		$1, %ecx
 
@@ -755,26 +845,27 @@ mp1_ioctl_getstatus:
 		movl		mp1_score, %esi
 		addw		%si, %cx
 
-		movl		$4, %edi
+		movl		%eax, %edx
+		movl		%ecx, (%edx)
+		
 		# Pushing the parameters for mp1_copy_to_user function
 		# mp1_copy_to_user (user address, from address, size)
 		pushl		%edi
-		pushl		%ecx
+		pushl		%edx
 		pushl		%ebx
 		call		mp1_copy_to_user
 		# Cleaning the stack memory pushed for mp1_copy_to_user
 		popl		%ebx
-		popl		%ecx
+		popl		%edx
 		popl		%edi
 
 		# Return value in the eax, if not 0 then copy failed
 		cmpl		$0, %eax
 		jne		copy_to_user_fail
-
-		# Restore the stack frame pushed for used register
+		
+		pushl		%edx
+		call	mp1_free
 		popl		%edx
-		popl		%ecx
-		popl		%eax
 		
 		# Set the return value 0
 		movl		$0, %eax
@@ -787,10 +878,10 @@ mp1_ioctl_getstatus:
 		ret
 
 		copy_to_user_fail:
-		# Restore the stack frame pushed for used register
+
+		pushl		%edx
+		call	mp1_free
 		popl		%edx
-		popl		%ecx
-		popl		%eax
 		
 		# Set the return value -1
 		movl		$-1, %eax
@@ -803,6 +894,7 @@ mp1_ioctl_getstatus:
 		ret
 
 mp1_ioctl_endgame:
+
 		# Set up the stack frame
 		pushl		%ebp
 		movl		%esp, %ebp
@@ -811,11 +903,6 @@ mp1_ioctl_endgame:
 		pushl		%ebx
 		pushl		%esi
 		pushl		%edi
-
-		# Save registers that would potentially be used
-		pushl		%eax
-		pushl		%ecx
-		pushl		%edx
 
 		# Linked list removal
 		# head = head->next
@@ -831,9 +918,6 @@ mp1_ioctl_endgame:
 		jmp		missile_list_loop_2
 
 		end_cleanup:
-		popl		%edx
-		popl		%ecx
-		popl		%eax
 		popl		%edi
 		popl		%esi
 		popl		%ebx
