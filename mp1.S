@@ -84,25 +84,23 @@ mp1_rtc_tasklet:
 
 		# Check if there are missiles left in the linked list
 		cmpl		$0, mp1_missile_list
-		je		missiles_update_complete
+		je			missiles_update_complete
 
 		# Call the first function to update/check missiles
 		# Save the caller-saved registers
 		pushl		%eax
 		pushl		%ecx
 		pushl		%edx
+		
 		call		update_missiles
+		
 		popl		%edx
 		popl		%ecx
 		popl		%eax
 		
 		# No missiles left or all updates are completed
-		missiles_update_complete:
-		popl		%edx
-		popl		%ecx
-		popl		%eax
+		missiles_update_complete:		
 		
-		#
 		pushl		%eax
 		pushl		%ecx
 		pushl		%edx
@@ -122,7 +120,7 @@ mp1_rtc_tasklet:
 		popl		%edx
 		popl		%ecx
 		popl		%eax
-
+		
 		popl		%edi
 		popl		%esi
 		popl		%ebx
@@ -143,10 +141,10 @@ mp1_rtc_tasklet:
 mp1_ioctl:
 		movl		8(%esp), %eax
 		cmpl		$4, %eax
-		jg		invalid_cmd
+		jg			invalid_cmd
 		cmpl		$0, %eax
-		jl		invalid_cmd
-		jmp		*jumptable(,%eax,4)
+		jl			invalid_cmd
+		jmp			*jumptable(,%eax,4)
 
 invalid_cmd:
 		movl		$-1, %eax
@@ -167,6 +165,8 @@ update_missiles:
 		pushl		%esi
 		pushl		%edi
 		
+		cmpl		$0, mp1_missile_list
+		je			end_of_missile_list
 		# Load in the missile list
 		movl		mp1_missile_list, %edx
 
@@ -326,8 +326,13 @@ update_missiles:
 		je			missile_remove
 
 		next_missile_in_the_list:
-		movl		%edx, %ecx
-		movl		NEXT(%ecx), %edx
+		movl		%edx, %edi
+		cmpl		$0, %edx
+		je			end_of_missile_list
+		movl		NEXT(%edx), %esi
+		cmpl		$0, %esi
+		je			end_of_missile_list
+		movl		%esi, %edx
 		jmp			missile_loop_check		
 
 		end_of_missile_list:
@@ -648,6 +653,7 @@ mp1_ioctl_startgame:
 
 # Is working but tasklet is broken
 mp1_ioctl_addmissile:
+
 		# Set up the stack frame
 		pushl		%ebp
 		movl		%esp, %ebp
@@ -803,7 +809,7 @@ mp1_ioctl_movexhairs:
 		ret
 
 mp1_ioctl_getstatus:
-		
+	
 		# Set up the stack frame
 		pushl		%ebp
 		movl		%esp, %ebp
@@ -909,13 +915,21 @@ mp1_ioctl_endgame:
 		missile_list_loop_2:
 		movl		mp1_missile_list, %ebx
 		cmpl		$0, %ebx
-		je		end_cleanup
+		je			end_cleanup
+		cmpl		$0, NEXT(%ebx)
+		je			last_cycle
 		movl		NEXT(%ebx), %ecx
 		movl		%ecx, mp1_missile_list
 		pushl		%ebx
 		call		mp1_free
 		popl		%ebx
-		jmp		missile_list_loop_2
+		jmp			missile_list_loop_2
+		
+		last_cycle:
+		pushl		%ebx
+		call		mp1_free
+		popl		%ebx
+		movl		$0, mp1_missile_list
 
 		end_cleanup:
 		popl		%edi
